@@ -16,14 +16,17 @@ function getThisDaysDate() {
 
 await mongoose.connect(process.env.MONGO_CONNECTION)
 
-const fileNamesSchema = new Schema({
+const fileLogSchema = new Schema({
 	id: Schema.ObjectId,
-	name: String,
+	name: {
+		type: String,
+		unique: true,
+	},
 	date: Date,
 	url: String,
 })
 
-const FileName = mongoose.model("fileName", fileNamesSchema)
+const FileLog = mongoose.model("filelogs", fileLogSchema)
 
 // creating a mongo schema for today's csv data
 const additionSchema = new Schema({
@@ -92,12 +95,18 @@ app.get("/", async (req, res) => {
 	res.json({ message: "Up & Running!" })
 })
 
+/**
+ * API endpoint to return current
+ * additions, removals, updates
+ * and the date/key for the last day's data
+ */
 app.get("/today", async (req, res) => {
 	try {
-		const fileName = await FileName.findOne().exec()
-		if (fileName) {
-			console.log(fileName.name)
-			const thisDaysDate = fileName.name
+		const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
+		console.log(fileName[0])
+		if (fileName[0]) {
+			console.log(fileName[0].name)
+			const thisDaysDate = fileName[0].name
 			console.log(thisDaysDate)
 			const additions = await Addition.find({ date: thisDaysDate }).exec()
 			const removals = await Removal.find({ date: thisDaysDate }).exec()
@@ -112,7 +121,7 @@ app.get("/today", async (req, res) => {
 				additions,
 				removals,
 				updates,
-				updateDate: fileName.name,
+				updateDate: fileName[0].name,
 			})
 		}
 	} catch (e) {}
@@ -123,16 +132,16 @@ app.get("/page/:pageNum", async (req, res) => {
 	console.log(pageNum)
 
 	try {
-		const files = await File.find()
+		const fileLogs = await FileLog.find()
 			.select("name")
 			.sort({ date: -1 })
 			.skip(pageNum)
 			.limit(1)
 			.exec()
-		console.log(files)
+		console.log(fileLogs)
 
-		if (files.length > 0) {
-			const currDate = files[0].name
+		if (fileLogs.length > 0) {
+			const currDate = fileLogs[0].name
 			console.log(currDate)
 			const additions = await Addition.find({ date: currDate }).exec()
 			const removals = await Removal.find({ date: currDate }).exec()
@@ -149,8 +158,13 @@ app.get("/page/:pageNum", async (req, res) => {
 				updates,
 				updateDate: currDate,
 			})
+		} else {
+			return res.status(404).json({
+				additions: [],
+				removals: [],
+				updates: [],
+			})
 		}
-		return res.json({ fileName })
 	} catch (e) {}
 })
 
