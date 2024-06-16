@@ -2,12 +2,33 @@ import express from "express"
 import dotenv from "dotenv"
 import mongoose, { Schema } from "mongoose"
 import cors from "cors"
+import { MongoClient } from 'mongodb';
 
 dotenv.config()
+
+const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_DB = process.env.MONGODB_DB;
+const COLLECTION_NAME = 'files-storage';
 
 const app = express()
 
 app.use(cors())
+
+let cachedClient = null;
+
+async function getMongoClient() {
+	if (cachedClient) {
+		return cachedClient;
+	}
+
+	if (!MONGODB_URI) {
+		throw new Error('MONGODB_URI is not defined');
+	}
+
+	const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+	cachedClient = client;
+	return cachedClient;
+}
 
 function getThisDaysDate() {
 	const d = new Date()
@@ -81,19 +102,6 @@ const removalSchema = new Schema({
 
 // assigning a model to mongodb user userSchema
 const Removal = mongoose.model("removals", removalSchema)
-
-// creating a mongo schema for today's csv data
-const fileStorageSchema = new Schema({
-	"Organisation Name": String,
-	"Town/City": String,
-	"County": String,
-	"Type & Rating": String,
-	"Route": String,
-	"date": String
-})
-
-// assigning a model to mongodb user userSchema
-const FileStorage = mongoose.model("files-storage", fileStorageSchema)
 
 function getFormattedDate(d = new Date().toString()) {
 	const date = new Date(d)
@@ -184,6 +192,9 @@ app.get("/page/:pageNum", async (req, res) => {
 app.get("/sponsors", async (req, res) => {
 	const { search } = req.query;
 	try {
+		const client = await getMongoClient();
+		const db = client.db(MONGODB_DB);
+		const collection = db.collection(COLLECTION_NAME);
 		const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
 		console.log(fileName[0])
 		const updateDate = fileName[0].name;
@@ -194,9 +205,9 @@ app.get("/sponsors", async (req, res) => {
 		if (search) {
 			query["Organisation Name"] = { $regex: search, $options: 'i' };
 		}
-		const countTotal = await FileStorage.countDocuments({ date: updateDate }).exec();
-		const count = await FileStorage.countDocuments(query).exec();
-		const sponsors = await FileStorage.find(query).exec();
+		const countTotal = await collection.countDocuments({ date: updateDate });
+		const count = await collection.countDocuments(query);
+		const sponsors = await collection.find(query).toArray();
 
 		return res.json({ count, countTotal, sponsors });
 	} catch (e) {
