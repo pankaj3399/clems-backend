@@ -82,6 +82,19 @@ const removalSchema = new Schema({
 // assigning a model to mongodb user userSchema
 const Removal = mongoose.model("removals", removalSchema)
 
+// creating a mongo schema for today's csv data
+const fileStorageSchema = new Schema({
+	"Organisation Name": String,
+	"Town/City": String,
+	"County": String,
+	"Type & Rating": String,
+	"Route": String,
+	"date": String
+})
+
+// assigning a model to mongodb user userSchema
+const FileStorage = mongoose.model("files-storage", fileStorageSchema)
+
 function getFormattedDate(d = new Date().toString()) {
 	const date = new Date(d)
 	const year = date.getFullYear()
@@ -124,7 +137,7 @@ app.get("/today", async (req, res) => {
 				updateDate: fileName[0].name,
 			})
 		}
-	} catch (e) {}
+	} catch (e) { }
 })
 
 app.get("/page/:pageNum", async (req, res) => {
@@ -165,7 +178,30 @@ app.get("/page/:pageNum", async (req, res) => {
 				updates: [],
 			})
 		}
-	} catch (e) {}
+	} catch (e) { }
+})
+
+app.get("/sponsors", async (req, res) => {
+	const { search } = req.query;
+	try {
+		const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
+		console.log(fileName[0])
+		const updateDate = fileName[0].name;
+
+		let query = {
+			date: updateDate // Assuming the field name is 'date' and is a string in 'YYYY-MM-DD' format
+		};
+		if (search) {
+			query["Organisation Name"] = { $regex: search, $options: 'i' };
+		}
+		const countTotal = await FileStorage.countDocuments({ date: updateDate }).exec();
+		const count = await FileStorage.countDocuments(query).exec();
+		const sponsors = await FileStorage.find(query).exec();
+
+		return res.json({ count, countTotal, sponsors });
+	} catch (e) {
+		console.log(e);
+	}
 })
 
 app.listen(3000, () => {
