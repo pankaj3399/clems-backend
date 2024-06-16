@@ -21,11 +21,11 @@ async function getMongoClient() {
 		return cachedClient;
 	}
 
-	if (!MONGODB_URI) {
-		throw new Error('MONGODB_URI is not defined');
+	if (!MONGO_CONNECTION) {
+		throw new Error('MONGO_CONNECTION is not defined');
 	}
 
-	const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+	const client = new MongoClient(MONGO_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true });
 	cachedClient = client;
 	return cachedClient;
 }
