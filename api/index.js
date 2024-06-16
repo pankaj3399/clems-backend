@@ -6,7 +6,6 @@ import { MongoClient } from 'mongodb';
 
 dotenv.config()
 
-const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB;
 const COLLECTION_NAME = 'files-storage';
 
@@ -21,11 +20,11 @@ async function getMongoClient() {
 		return cachedClient;
 	}
 
-	if (!MONGO_CONNECTION) {
+	if (!process.env.MONGO_CONNECTION) {
 		throw new Error('MONGO_CONNECTION is not defined');
 	}
 
-	const client = new MongoClient(MONGO_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true });
+	const client = new MongoClient(process.env.MONGO_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true });
 	cachedClient = client;
 	return cachedClient;
 }
