@@ -188,8 +188,41 @@ app.get("/page/:pageNum", async (req, res) => {
 	} catch (e) { }
 })
 
+app.get("/unique-town-city", async (req, res) => {
+	try {
+		const client = await getMongoClient();
+		const db = client.db(MONGODB_DB);
+		const collection = db.collection(COLLECTION_NAME);
+
+		const distinctTownCity = await collection.distinct('Town/City');
+
+		// loop through the distinct town/city and remove trailing spaces, capitalize first letter of each word
+		distinctTownCity.forEach((townCity, index) => {
+			distinctTownCity[index] = townCity.trim().replace(/\b\w/g, l => l.toUpperCase());
+
+			// convert to lowercase
+			distinctTownCity[index] = distinctTownCity[index].toLowerCase();
+
+			// capitalize first letter of each word
+			distinctTownCity[index] = distinctTownCity[index].replace(/\b\w/g, l => l.toUpperCase());
+
+			// remove "," at beginning or end of string
+			distinctTownCity[index] = distinctTownCity[index].replace(/(^,)|(,$)/g, "");
+		});
+
+		// use set to remove duplicates
+		const uniqueTownCity = [...new Set(distinctTownCity)];
+
+		uniqueTownCity.sort();
+
+		return res.json({ uniqueTownCity });
+	} catch (e) {
+		console.log(e);
+	}
+})
+
 app.get("/sponsors", async (req, res) => {
-	const { search } = req.query;
+	const { search, city, category } = req.query;
 	try {
 		const client = await getMongoClient();
 		const db = client.db(MONGODB_DB);
@@ -203,6 +236,12 @@ app.get("/sponsors", async (req, res) => {
 		};
 		if (search) {
 			query["Organisation Name"] = { $regex: search, $options: 'i' };
+		}
+		if (city) {
+			query["Town/City"] = { $regex: city, $options: 'i' };
+		}
+		if (category) {
+			query["Organisation Name"] = { $regex: category, $options: 'i' };
 		}
 		const countTotal = await collection.countDocuments({ date: updateDate });
 		const count = await collection.countDocuments(query);
