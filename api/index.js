@@ -605,8 +605,18 @@ app.get("/sponsors", async (req, res) => {
 			query["Organisation Name"] = { $in: [new RegExp(categoriesArray.join("|"), "i")] };
 		}
 		const countTotal = await collection.countDocuments({ date: updateDate });
-		const count = await collection.countDocuments(query);
-		const sponsors = await collection.find(query).toArray();
+		let count = 0;
+        if (search || city || category) {
+            count = await collection.countDocuments(query);
+        } else {
+            count = 20;
+        }
+        let sponsors = []
+        if (search || city || category) {
+		    sponsors = await collection.find(query).toArray();
+        } else {
+            sponsors = await collection.find(query).limit(20).toArray();
+        }
 
 		return res.json({ count, countTotal, sponsors });
 	} catch (e) {
