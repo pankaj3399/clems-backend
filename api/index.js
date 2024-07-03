@@ -3,6 +3,8 @@ import dotenv from "dotenv"
 import mongoose, { Schema } from "mongoose"
 import cors from "cors"
 import { MongoClient } from 'mongodb';
+import { sendEmail } from "./mail.js";
+import { contactFormMailgenContent } from "./mail.js";
 
 const categories = {
     "Healthcare Services": [
@@ -372,62 +374,63 @@ const COLLECTION_NAME = 'files-storage';
 
 const app = express()
 
+app.use(express.json({ limit: "16kb" }));
 app.use(cors())
 
 let cachedClient = null;
 
 async function getMongoClient() {
-	if (cachedClient) {
-		return cachedClient;
-	}
+    if (cachedClient) {
+        return cachedClient;
+    }
 
-	if (!process.env.MONGO_CONNECTION) {
-		throw new Error('MONGO_CONNECTION is not defined');
-	}
+    if (!process.env.MONGO_CONNECTION) {
+        throw new Error('MONGO_CONNECTION is not defined');
+    }
 
-	const client = new MongoClient(process.env.MONGO_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true });
-	cachedClient = client;
-	return cachedClient;
+    const client = new MongoClient(process.env.MONGO_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true });
+    cachedClient = client;
+    return cachedClient;
 }
 
 function getThisDaysDate() {
-	const d = new Date()
-	return `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}`
+    const d = new Date()
+    return `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}`
 }
 
 await mongoose.connect(process.env.MONGO_CONNECTION)
 
 const fileLogSchema = new Schema({
-	id: Schema.ObjectId,
-	name: {
-		type: String,
-		unique: true,
-	},
-	date: Date,
-	url: String,
+    id: Schema.ObjectId,
+    name: {
+        type: String,
+        unique: true,
+    },
+    date: Date,
+    url: String,
 })
 
 const FileLog = mongoose.model("filelogs", fileLogSchema)
 
 // creating a mongo schema for today's csv data
 const additionSchema = new Schema({
-	id: Schema.ObjectId,
-	name: String,
-	townCity: String,
-	county: String,
-	type: String,
-	route: String,
-	date: String,
+    id: Schema.ObjectId,
+    name: String,
+    townCity: String,
+    county: String,
+    type: String,
+    route: String,
+    date: String,
 })
 
 const fileScehma = new Schema({
-	id: Schema.ObjectId,
-	name: {
-		type: String,
-		unique: true,
-	},
-	data: String,
-	date: Date,
+    id: Schema.ObjectId,
+    name: {
+        type: String,
+        unique: true,
+    },
+    data: String,
+    date: Date,
 })
 
 const File = mongoose.model("files", fileScehma)
@@ -437,13 +440,13 @@ const Addition = mongoose.model("addition", additionSchema)
 
 // creating a mongo schema for today's csv data
 const updateSchema = new Schema({
-	id: Schema.ObjectId,
-	name: String,
-	townCity: String,
-	county: String,
-	type: String,
-	route: String,
-	date: String,
+    id: Schema.ObjectId,
+    name: String,
+    townCity: String,
+    county: String,
+    type: String,
+    route: String,
+    date: String,
 })
 
 // assigning a model to mongodb user userSchema
@@ -451,29 +454,38 @@ const Updates = mongoose.model("updates", updateSchema)
 
 // creating a mongo schema for today's csv data
 const removalSchema = new Schema({
-	id: Schema.ObjectId,
-	name: String,
-	townCity: String,
-	county: String,
-	type: String,
-	route: String,
-	date: String,
+    id: Schema.ObjectId,
+    name: String,
+    townCity: String,
+    county: String,
+    type: String,
+    route: String,
+    date: String,
 })
 
 // assigning a model to mongodb user userSchema
 const Removal = mongoose.model("removals", removalSchema)
 
-function getFormattedDate(d = new Date().toString()) {
-	const date = new Date(d)
-	const year = date.getFullYear()
-	const month = String(date.getMonth() + 1).padStart(2, "0")
-	const day = String(date.getDate()).padStart(2, "0")
+const follwedEmailsSchema = new Schema({
+    id: Schema.ObjectId,
+    email: String,
+    companyName: String,
+    date: Date,
+})
 
-	return `${year}-${month}-${day}`
+const FollowedEmails = mongoose.model("followedEmails", follwedEmailsSchema)
+
+function getFormattedDate(d = new Date().toString()) {
+    const date = new Date(d)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+
+    return `${year}-${month}-${day}`
 }
 
 app.get("/", async (req, res) => {
-	res.json({ message: "Up & Running!" })
+    res.json({ message: "Up & Running!" })
 })
 
 /**
@@ -482,150 +494,187 @@ app.get("/", async (req, res) => {
  * and the date/key for the last day's data
  */
 app.get("/today", async (req, res) => {
-	try {
-		const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
-		console.log(fileName[0])
-		if (fileName[0]) {
-			console.log(fileName[0].name)
-			const thisDaysDate = fileName[0].name
-			console.log(thisDaysDate)
-			const additions = await Addition.find({ date: thisDaysDate }).exec()
-			const removals = await Removal.find({ date: thisDaysDate }).exec()
-			const updates = await Updates.find({ date: thisDaysDate }).exec()
+    try {
+        const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
+        console.log(fileName[0])
+        if (fileName[0]) {
+            console.log(fileName[0].name)
+            const thisDaysDate = fileName[0].name
+            console.log(thisDaysDate)
+            const additions = await Addition.find({ date: thisDaysDate }).exec()
+            const removals = await Removal.find({ date: thisDaysDate }).exec()
+            const updates = await Updates.find({ date: thisDaysDate }).exec()
 
-			console.log({
-				additions: additions.length,
-				removals: removals.length,
-				updates: updates.length,
-			})
-			return res.json({
-				additions,
-				removals,
-				updates,
-				updateDate: fileName[0].name,
-			})
-		}
-	} catch (e) { }
+            console.log({
+                additions: additions.length,
+                removals: removals.length,
+                updates: updates.length,
+            })
+            return res.json({
+                additions,
+                removals,
+                updates,
+                updateDate: fileName[0].name,
+            })
+        }
+    } catch (e) { }
 })
 
 app.get("/page/:pageNum", async (req, res) => {
-	const { pageNum } = req.params
-	console.log(pageNum)
+    const { pageNum } = req.params
+    console.log(pageNum)
 
-	try {
-		const fileLogs = await FileLog.find()
-			.select("name")
-			.sort({ date: -1 })
-			.skip(pageNum)
-			.limit(1)
-			.exec()
-		console.log(fileLogs)
+    try {
+        const fileLogs = await FileLog.find()
+            .select("name")
+            .sort({ date: -1 })
+            .skip(pageNum)
+            .limit(1)
+            .exec()
+        console.log(fileLogs)
 
-		if (fileLogs.length > 0) {
-			const currDate = fileLogs[0].name
-			console.log(currDate)
-			const additions = await Addition.find({ date: currDate }).exec()
-			const removals = await Removal.find({ date: currDate }).exec()
-			const updates = await Updates.find({ date: currDate }).exec()
+        if (fileLogs.length > 0) {
+            const currDate = fileLogs[0].name
+            console.log(currDate)
+            const additions = await Addition.find({ date: currDate }).exec()
+            const removals = await Removal.find({ date: currDate }).exec()
+            const updates = await Updates.find({ date: currDate }).exec()
 
-			console.log({
-				additions: additions.length,
-				removals: removals.length,
-				updates: updates.length,
-			})
-			return res.json({
-				additions,
-				removals,
-				updates,
-				updateDate: currDate,
-			})
-		} else {
-			return res.status(404).json({
-				additions: [],
-				removals: [],
-				updates: [],
-			})
-		}
-	} catch (e) { }
+            console.log({
+                additions: additions.length,
+                removals: removals.length,
+                updates: updates.length,
+            })
+            return res.json({
+                additions,
+                removals,
+                updates,
+                updateDate: currDate,
+            })
+        } else {
+            return res.status(404).json({
+                additions: [],
+                removals: [],
+                updates: [],
+            })
+        }
+    } catch (e) { }
 })
 
 app.get("/unique-town-city", async (req, res) => {
-	try {
-		const client = await getMongoClient();
-		const db = client.db(MONGODB_DB);
-		const collection = db.collection(COLLECTION_NAME);
+    try {
+        const client = await getMongoClient();
+        const db = client.db(MONGODB_DB);
+        const collection = db.collection(COLLECTION_NAME);
 
-		const distinctTownCity = await collection.distinct('Town/City');
+        const distinctTownCity = await collection.distinct('Town/City');
 
-		// loop through the distinct town/city and remove trailing spaces, capitalize first letter of each word
-		distinctTownCity.forEach((townCity, index) => {
-			distinctTownCity[index] = townCity.trim().replace(/\b\w/g, l => l.toUpperCase());
+        // loop through the distinct town/city and remove trailing spaces, capitalize first letter of each word
+        distinctTownCity.forEach((townCity, index) => {
+            distinctTownCity[index] = townCity.trim().replace(/\b\w/g, l => l.toUpperCase());
 
-			// convert to lowercase
-			distinctTownCity[index] = distinctTownCity[index].toLowerCase();
+            // convert to lowercase
+            distinctTownCity[index] = distinctTownCity[index].toLowerCase();
 
-			// capitalize first letter of each word
-			distinctTownCity[index] = distinctTownCity[index].replace(/\b\w/g, l => l.toUpperCase());
+            // capitalize first letter of each word
+            distinctTownCity[index] = distinctTownCity[index].replace(/\b\w/g, l => l.toUpperCase());
 
-			// remove "," at beginning or end of string
-			distinctTownCity[index] = distinctTownCity[index].replace(/(^,)|(,$)/g, "");
-		});
+            // remove "," at beginning or end of string
+            distinctTownCity[index] = distinctTownCity[index].replace(/(^,)|(,$)/g, "");
+        });
 
-		// use set to remove duplicates
-		const uniqueTownCity = [...new Set(distinctTownCity)];
+        // use set to remove duplicates
+        const uniqueTownCity = [...new Set(distinctTownCity)];
 
-		uniqueTownCity.sort();
+        uniqueTownCity.sort();
 
-		return res.json({ uniqueTownCity });
-	} catch (e) {
-		console.log(e);
-	}
+        return res.json({ uniqueTownCity });
+    } catch (e) {
+        console.log(e);
+    }
 })
 
 app.get("/sponsors", async (req, res) => {
-	const { search, city, category } = req.query;
-	try {
-		const client = await getMongoClient();
-		const db = client.db(MONGODB_DB);
-		const collection = db.collection(COLLECTION_NAME);
-		const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
-		const updateDate = fileName[0].name;
+    const { search, city, category, limit = 20 } = req.query;
+    try {
+        const client = await getMongoClient();
+        const db = client.db(MONGODB_DB);
+        const collection = db.collection(COLLECTION_NAME);
+        const fileName = await FileLog.find().sort({ date: -1 }).limit(1).exec()
+        const updateDate = fileName[0].name;
 
-		let query = {
-			date: updateDate // Assuming the field name is 'date' and is a string in 'YYYY-MM-DD' format
-		};
-		if (search) {
-			query["Organisation Name"] = { $regex: search, $options: 'i' };
-		}
-		if (city) {
-			query["Town/City"] = { $regex: city, $options: 'i' };
-		}
-		if (category) {
-			const categoriesArray = categories[category];
-			query["Organisation Name"] = { $in: [new RegExp(categoriesArray.join("|"), "i")] };
-		}
-		const countTotal = await collection.countDocuments({ date: updateDate });
-		let count = 0;
+        let query = {
+            date: updateDate // Assuming the field name is 'date' and is a string in 'YYYY-MM-DD' format
+        };
+        if (search) {
+            query["Organisation Name"] = { $regex: search, $options: 'i' };
+        }
+        if (city) {
+            query["Town/City"] = { $regex: city, $options: 'i' };
+        }
+        if (category) {
+            const categoriesArray = categories[category];
+            query["Organisation Name"] = { $in: [new RegExp(categoriesArray.join("|"), "i")] };
+        }
+        const countTotal = await collection.countDocuments({ date: updateDate });
+        let count = 0;
         if (search || city || category) {
             count = await collection.countDocuments(query);
         } else {
-            count = 20;
+            count = limit;
         }
         let sponsors = []
         if (search || city || category) {
-		    sponsors = await collection.find(query).toArray();
+            sponsors = await collection.find(query).toArray();
         } else {
-            sponsors = await collection.find(query).limit(20).toArray();
+            sponsors = await collection.find(query).limit(parseInt(count)).toArray();
         }
 
-		return res.json({ count, countTotal, sponsors });
-	} catch (e) {
-		console.log(e);
-	}
+        return res.json({ count, countTotal, sponsors });
+    } catch (e) {
+        console.log(e);
+    }
+})
+
+app.post("/contact-form", async (req, res) => {
+    try {
+        const { name, email, contactInfo, shortInfo } = req.body;
+        if (!name || !email || !contactInfo || !shortInfo) {
+            return res.status(400).json({ message: "All fields required" })
+        }
+        await sendEmail({
+            email: email,
+            subject: "Submitted Contact Form",
+            mailgenContent: contactFormMailgenContent({ name, email, contactInfo, shortInfo })
+        })
+        return res.json({ message: "Email Sent!" })
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Internal Server Error" })
+    }
+});
+
+app.post("/follow-company", async (req, res) => {
+    try {
+        const { email, companyName } = req.body;
+        if (!email || !companyName) {
+            return res.status(400).json({ message: "All fields required" })
+        }
+        const followedEmail = new FollowedEmails({
+            email,
+            companyName,
+            date: new Date(),
+        })
+        await followedEmail.save();
+        return res.json({ message: "Email Subscribed!" })
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Internal Server Error" })
+    }
 })
 
 app.listen(3000, () => {
-	console.log(`Up & Running on PORT:3000`)
+    console.log(`Up & Running on PORT:3000`)
 })
 
-export default app
+export default app;
