@@ -504,7 +504,12 @@ app.get("/today", async (req, res) => {
         updateDate: fileName[0].name,
       });
     }
-  } catch (e) {}
+  } catch (e) {
+    console.log(e);
+    return res.json({
+      error: e,
+    });
+  }
 });
 
 app.get("/page/:pageNum", async (req, res) => {
@@ -545,7 +550,12 @@ app.get("/page/:pageNum", async (req, res) => {
         updates: [],
       });
     }
-  } catch (e) {}
+  } catch (e) {
+    console.log(e);
+    return res.json({
+      error: e,
+    });
+  }
 });
 
 app.get("/unique-town-city", async (req, res) => {
@@ -585,6 +595,9 @@ app.get("/unique-town-city", async (req, res) => {
     return res.json({ uniqueTownCity });
   } catch (e) {
     console.log(e);
+    return res.json({
+      error: e,
+    });
   }
 });
 
@@ -629,6 +642,9 @@ app.get("/sponsors", async (req, res) => {
     return res.json({ count, countTotal, sponsors });
   } catch (e) {
     console.log(e);
+    return res.json({
+      error: e,
+    });
   }
 });
 
