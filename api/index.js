@@ -690,10 +690,11 @@ app.post("/follow-company", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, async () => {
+await mongoose.connect(process.env.MONGO_CONNECTION);
+console.log("Connection Success:", mongoose.connection.name);
+
+app.listen(process.env.PORT || 3000, () => {
   console.log(`Up & Running on PORT:3000`);
-  await mongoose.connect(process.env.MONGO_CONNECTION);
-  console.log("Connection Success:", mongoose.connection.name);
 });
 
 export default app;
